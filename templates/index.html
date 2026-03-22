@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alzheimer's MRI Classifier</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
+    <style>
+      body {
+        background: #f3f4f6;
+        min-height: 100vh;
+        color: #111827;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
+      .card {
+        background: #ffffff;
+        border-radius: 1.25rem;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      }
+      .btn-upload {
+        border-radius: 999px;
+        padding: 0.65rem 1.5rem;
+        font-weight: 600;
+      }
+      .prediction-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.9rem;
+        border-radius: 999px;
+        background: #e0f2fe;
+        border: 1px solid #38bdf8;
+        color: #0369a1;
+        font-size: 0.9rem;
+      }
+      .badge-pill {
+        border-radius: 999px;
+      }
+      .prob-row {
+        font-size: 0.9rem;
+      }
+      .prob-bar {
+        height: 0.4rem;
+        border-radius: 999px;
+      }
+      .label-strong {
+        font-weight: 600;
+      }
+      .footer-note {
+        font-size: 0.8rem;
+        color: #6b7280;
+      }
+      .glcm-feature {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+      }
+      .glcm-label {
+        font-size: 0.85rem;
+        color: #6b7280;
+        font-weight: 500;
+      }
+      .glcm-value {
+        font-size: 1rem;
+        color: #111827;
+        font-weight: 600;
+      }
+      input[type="file"]::file-selector-button {
+        border-radius: 999px;
+        border: 1px solid #d1d5db;
+        padding: 0.4rem 1rem;
+        margin-right: 0.75rem;
+        background: #ffffff;
+        color: #111827;
+        cursor: pointer;
+        font-weight: 500;
+      }
+      input[type="file"]::file-selector-button:hover {
+        background: #e5e7eb;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-8 col-md-10">
+          <div class="card p-4 p-md-5">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <h2 class="fw-semibold mb-1">
+                  Alzheimer's MRI Prediction
+                </h2>
+                <p class="mb-0 text-secondary">
+                  Upload a brain MRI scan to classify dementia stage using your
+                  trained {% if is_hybrid %}hybrid CNN + GLCM{% else %}CNN{% endif %} model.
+                </p>
+              </div>
+              <span class="badge bg-primary-subtle text-primary-emphasis rounded-pill">
+                {% if is_hybrid %}Hybrid Model{% else %}CNN Model{% endif %}
+              </span>
+            </div>
+
+            <form
+              method="POST"
+              enctype="multipart/form-data"
+              class="mt-3"
+            >
+              <div class="mb-3">
+                <label for="image" class="form-label fw-semibold">
+                  MRI Image (.jpg, .jpeg, .png)
+                </label>
+                <input
+                  class="form-control"
+                  type="file"
+                  id="image"
+                  name="image"
+                  accept="image/*"
+                  required
+                />
+              </div>
+              <div class="d-flex justify-content-between align-items-center">
+                <button
+                  type="submit"
+                  class="btn btn-primary btn-upload"
+                >
+                  Run Prediction
+                </button>
+              </div>
+            </form>
+
+            {% if error %}
+            <div class="alert alert-danger mt-4 mb-0" role="alert">
+              {{ error }}
+            </div>
+            {% endif %}
+
+            {% if prediction %}
+            <hr class="my-4" />
+            <div class="mt-2">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Prediction</h5>
+                <div class="prediction-chip">
+                  <span class="badge bg-success badge-pill"></span>
+                  <span class="label-strong">{{ prediction }}</span>
+                </div>
+              </div>
+
+              {% if class_probs %}
+              <div class="mt-3">
+                <p class="mb-2 text-secondary">
+                  Class probabilities:
+                </p>
+                <div class="list-group list-group-flush">
+                  {% for cp in class_probs %}
+                  <div
+                    class="list-group-item bg-transparent border-0 px-0 prob-row"
+                  >
+                    <div class="d-flex justify-content-between mb-1">
+                      <span>{{ cp.label }}</span>
+                      <span>{{ '%.1f' | format(cp.prob * 100) }}%</span>
+                    </div>
+                    <div class="progress prob-bar">
+                      <div
+                        class="progress-bar bg-info"
+                        role="progressbar"
+                        style="width: {{ cp.prob * 100 }}%"
+                        aria-valuenow="{{ cp.prob * 100 }}"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                      ></div>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+
+              {% if glcm_features %}
+              <div class="mt-4">
+                <p class="mb-2 text-secondary fw-semibold">
+                  GLCM Texture Features:
+                </p>
+                <div class="row g-2">
+                  <div class="col-md-4">
+                    <div class="glcm-feature">
+                      <div class="glcm-label">Contrast</div>
+                      <div class="glcm-value">{{ '%.4f' | format(glcm_features.contrast) }}</div>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="glcm-feature">
+                      <div class="glcm-label">Homogeneity</div>
+                      <div class="glcm-value">{{ '%.4f' | format(glcm_features.homogeneity) }}</div>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="glcm-feature">
+                      <div class="glcm-label">Entropy</div>
+                      <div class="glcm-value">{{ '%.4f' | format(glcm_features.entropy) }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+
+              {% if heatmap_image_url %}
+              <div class="mt-4">
+                <p class="mb-2 text-secondary fw-semibold">
+                  Activation Heatmap (shows which regions activate the model most):
+                </p>
+                <div class="border rounded-3 p-2 bg-light">
+                  <img
+                    src="{{ heatmap_image_url }}"
+                    alt="Activation heatmap visualization"
+                    class="img-fluid rounded-3 heatmap-thumbnail"
+                    style="cursor: zoom-in; max-width: 100%;"
+                    data-bs-toggle="modal"
+                    data-bs-target="#heatmapModal"
+                  />
+                </div>
+              </div>
+              {% endif %}
+
+              {% if saliency_image_url %}
+              <div class="mt-4">
+                <p class="mb-2 text-secondary fw-semibold">
+                  Saliency Heatmap (class-specific, shows why the model predicted this class):
+                </p>
+                <div class="border rounded-3 p-2 bg-light">
+                  <img
+                    src="{{ saliency_image_url }}"
+                    alt="Saliency heatmap visualization"
+                    class="img-fluid rounded-3 heatmap-thumbnail"
+                    style="cursor: zoom-in; max-width: 100%;"
+                    data-bs-toggle="modal"
+                    data-bs-target="#saliencyModal"
+                  />
+                </div>
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Activation Heatmap Modal -->
+            {% if heatmap_image_url %}
+            <div class="modal fade" id="heatmapModal" tabindex="-1" aria-labelledby="heatmapModalLabel" aria-hidden="true">
+              <div class="modal-dialog modal-dialog-centered modal-xl">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="heatmapModalLabel">Activation Heatmap Visualization</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body text-center">
+                    <img
+                      src="{{ heatmap_image_url }}"
+                      alt="Activation heatmap visualization"
+                      class="img-fluid heatmap-full"
+                      style="max-height: 85vh;"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Saliency Heatmap Modal -->
+            {% if saliency_image_url %}
+            <div class="modal fade" id="saliencyModal" tabindex="-1" aria-labelledby="saliencyModalLabel" aria-hidden="true">
+              <div class="modal-dialog modal-dialog-centered modal-xl">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="saliencyModalLabel">Saliency Heatmap (class-specific)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body text-center">
+                    <img
+                      src="{{ saliency_image_url }}"
+                      alt="Saliency heatmap visualization"
+                      class="img-fluid heatmap-full"
+                      style="max-height: 85vh;"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            <div class="mt-4 footer-note">
+              <strong>Note:</strong> This tool is for demonstration and
+              educational purposes only and is not a substitute for professional
+              medical diagnosis.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+      crossorigin="anonymous"
+    ></script>
+  </body>
+</html>
+
